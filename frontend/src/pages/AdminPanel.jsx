@@ -4,7 +4,7 @@ import {
   Package, Plus, ClipboardList, Eye, Pencil, Trash2, RefreshCw, Search, X,
 } from 'lucide-react';
 import axiosInstance from '../api/axiosInstance';
-import './AdminPanel.css';
+import "./AdminSidebar.css";
 
 const STATUS_OPTIONS = ['PENDING', 'PROCESSING', 'SHIPPED', 'DELIVERED', 'CANCELLED'];
 const EMPTY_FORM = { name: '', price: '', category: '', imageUrl: '', description: '' };
