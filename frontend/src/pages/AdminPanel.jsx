@@ -1,7 +1,15 @@
 import { useEffect, useState, useMemo } from 'react';
 import { Navigate } from 'react-router-dom';
 import axiosInstance from '../api/axiosInstance';
-import { Edit3, Trash2, Search, RefreshCw } from 'lucide-react';
+import {
+  Edit3,
+  Trash2,
+  Search,
+  RefreshCw,
+  Plus,
+  Package,
+  ShoppingBag,
+} from 'lucide-react';
 
 const PLACEHOLDER_IMAGE = 'https://images.unsplash.com/photo-1526738549149-8e07eca6c147?w=100';
 const ORDER_STATUSES = ['PENDING', 'PROCESSING', 'SHIPPED', 'DELIVERED', 'CANCELLED'];
@@ -16,7 +24,7 @@ export default function AdminPanel() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
-  // Form State
+  // Form state
   const [name, setName] = useState('');
   const [price, setPrice] = useState('');
   const [imageUrl, setImageUrl] = useState('');
@@ -24,10 +32,12 @@ export default function AdminPanel() {
   const [description, setDescription] = useState('');
   const [editingId, setEditingId] = useState(null);
 
-  // Search Filter state
+  // Search filters
   const [productSearch, setProductSearch] = useState('');
   const [orderSearch, setOrderSearch] = useState('');
-  const [activeTab, setActiveTab] = useState('products'); // 'products' | 'orders'
+
+  // Which section of the dashboard is open: 'products' | 'add' | 'orders'
+  const [activeSection, setActiveSection] = useState('products');
 
   const fetchProducts = async () => {
     setLoadingProducts(true);
@@ -99,9 +109,15 @@ export default function AdminPanel() {
       }
       resetForm();
       fetchProducts();
+      setActiveSection('products'); // saved -> go back to the list
     } catch (err) {
       showNotification('Error saving product. Check backend service status.', false);
     }
+  };
+
+  const startNewProduct = () => {
+    resetForm();
+    setActiveSection('add');
   };
 
   const handleEdit = (product) => {
@@ -111,7 +127,13 @@ export default function AdminPanel() {
     setImageUrl(product.imageUrl || '');
     setCategory(product.category || '');
     setDescription(product.description || '');
+    setActiveSection('add');
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const cancelEdit = () => {
+    resetForm();
+    setActiveSection('products');
   };
 
   const handleDeleteProduct = async (id) => {
@@ -136,13 +158,10 @@ export default function AdminPanel() {
     }
   };
 
-  // Status Change via PUT /orders/{id}
+  // Uses the dedicated status endpoint: PUT /orders/{id}/status  { "status": "SHIPPED" }
   const handleUpdateOrderStatus = async (order, newStatus) => {
     try {
-      await axiosInstance.put(`/orders/${order.id}`, {
-        ...order,
-        status: newStatus,
-      });
+      await axiosInstance.put(`/orders/${order.id}/status`, { status: newStatus });
       showNotification(`Order #${order.id} status changed to ${newStatus}`);
       fetchOrders();
     } catch (err) {
@@ -186,322 +205,363 @@ export default function AdminPanel() {
     return <Navigate to="/" replace />;
   }
 
+  const sections = [
+    { id: 'products', label: 'Products', icon: Package, count: products.length },
+    {
+      id: 'add',
+      label: editingId ? 'Edit product' : 'Add product',
+      icon: editingId ? Edit3 : Plus,
+    },
+    { id: 'orders', label: 'Orders', icon: ShoppingBag, count: orders.length },
+  ];
+
+  const titles = {
+    products: 'Products',
+    add: editingId ? `Editing product #${editingId}` : 'Add a product',
+    orders: 'Orders',
+  };
+
+  const subtitles = {
+    products: 'Everything in your catalog.',
+    add: 'Fill in the details and save.',
+    orders: 'Track orders and update their status.',
+  };
+
   return (
     <div className="page admin-page">
-      <div className="container">
-        <header className="admin-head">
-          <div>
-            <span className="eyebrow">Admin</span>
-            <h1 className="page-title">Store Management</h1>
-            <p className="page-sub">Manage the catalog and keep orders moving.</p>
-          </div>
-          <button
-            type="button"
-            className="btn btn-outline btn-sm"
-            onClick={() => {
-              fetchProducts();
-              fetchOrders();
-            }}
-          >
-            <RefreshCw size={14} strokeWidth={1.5} />
-            <span>Refresh</span>
-          </button>
-        </header>
-
-        {success && <div className="notice notice-success">{success}</div>}
-        {error && <div className="notice notice-error">{error}</div>}
-
-        {/* Metrics */}
-        <div className="metrics-grid">
-          <div className="metric">
-            <span className="metric-label">Products</span>
-            <strong className="metric-value">{products.length}</strong>
-          </div>
-          <div className="metric">
-            <span className="metric-label">Orders</span>
-            <strong className="metric-value">{orders.length}</strong>
-          </div>
-          <div className="metric">
-            <span className="metric-label">Order value</span>
-            <strong className="metric-value">₹{totalRevenue.toLocaleString('en-IN')}</strong>
-          </div>
-          <div className="metric">
-            <span className="metric-label">Pending</span>
-            <strong className="metric-value">{pendingOrdersCount}</strong>
-          </div>
-        </div>
-
-        {/* Product form */}
-        <section className="panel">
-          <div className="panel-head">
-            <h2>{editingId ? `Editing product #${editingId}` : 'Add a product'}</h2>
-            {editingId && (
-              <button type="button" className="btn-text" onClick={resetForm}>
-                Cancel
+      <div className="admin-layout">
+        {/* ---------- Left: sections ---------- */}
+        <aside className="admin-sidebar">
+          <h2 className="admin-sidebar-title">Dashboard</h2>
+          <nav className="admin-nav" aria-label="Admin sections">
+            {sections.map(({ id, label, icon: Icon, count }) => (
+              <button
+                key={id}
+                type="button"
+                className={`admin-nav-item${activeSection === id ? ' is-active' : ''}`}
+                aria-current={activeSection === id ? 'page' : undefined}
+                onClick={() => setActiveSection(id)}
+              >
+                <Icon size={16} strokeWidth={1.5} />
+                <span>{label}</span>
+                {count !== undefined && <span className="admin-nav-count">{count}</span>}
               </button>
-            )}
-          </div>
+            ))}
+          </nav>
+        </aside>
 
-          <form onSubmit={handleSubmit} className="form">
-            <div className="form-grid">
-              <label className="field">
-                <span>Product name *</span>
-                <input
-                  type="text"
-                  placeholder="e.g. UltraBook Pro M3"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  required
-                />
-              </label>
-
-              <label className="field">
-                <span>Price (₹) *</span>
-                <input
-                  type="number"
-                  step="0.01"
-                  placeholder="e.g. 89999"
-                  value={price}
-                  onChange={(e) => setPrice(e.target.value)}
-                  required
-                />
-              </label>
-
-              <label className="field">
-                <span>Category *</span>
-                <input
-                  type="text"
-                  placeholder="e.g. Laptop, Mobile, Audio"
-                  value={category}
-                  onChange={(e) => setCategory(e.target.value)}
-                  required
-                />
-              </label>
-
-              <label className="field">
-                <span>Image URL</span>
-                <input
-                  type="text"
-                  placeholder="https://…"
-                  value={imageUrl}
-                  onChange={(e) => setImageUrl(e.target.value)}
-                />
-              </label>
-
-              <label className="field field-full">
-                <span>Description / specifications *</span>
-                <textarea
-                  placeholder="Detailed hardware specifications and description…"
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  rows={3}
-                  required
-                />
-              </label>
+        {/* ---------- Right: selected section ---------- */}
+        <div className="admin-main">
+          <header className="admin-main-head">
+            <div>
+              <h1 className="page-title">{titles[activeSection]}</h1>
+              <p className="page-sub">{subtitles[activeSection]}</p>
             </div>
 
-            <div className="form-actions">
-              <button type="submit" className="btn btn-dark">
-                {editingId ? 'Update Product' : 'Add Product'}
-              </button>
+            <div className="admin-main-actions">
+              {activeSection !== 'add' && (
+                <button
+                  type="button"
+                  className="btn btn-outline btn-sm"
+                  onClick={() => {
+                    fetchProducts();
+                    fetchOrders();
+                  }}
+                >
+                  <RefreshCw size={14} strokeWidth={1.5} />
+                  <span>Refresh</span>
+                </button>
+              )}
+              {activeSection === 'products' && (
+                <button type="button" className="btn btn-dark btn-sm" onClick={startNewProduct}>
+                  <Plus size={14} strokeWidth={1.5} />
+                  <span>Add product</span>
+                </button>
+              )}
             </div>
-          </form>
-        </section>
+          </header>
 
-        {/* Tabs */}
-        <div className="tabs" role="tablist">
-          <button
-            type="button"
-            role="tab"
-            aria-selected={activeTab === 'products'}
-            className={`tab${activeTab === 'products' ? ' is-active' : ''}`}
-            onClick={() => setActiveTab('products')}
-          >
-            Products <span>{products.length}</span>
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={activeTab === 'orders'}
-            className={`tab${activeTab === 'orders' ? ' is-active' : ''}`}
-            onClick={() => setActiveTab('orders')}
-          >
-            Orders <span>{orders.length}</span>
-          </button>
-        </div>
+          {success && <div className="notice notice-success">{success}</div>}
+          {error && <div className="notice notice-error">{error}</div>}
 
-        {/* Products table */}
-        {activeTab === 'products' && (
-          <section className="panel panel-flush">
-            <div className="table-toolbar">
-              <label className="search-field">
-                <Search size={16} strokeWidth={1.5} />
-                <input
-                  type="search"
-                  placeholder="Filter products…"
-                  value={productSearch}
-                  onChange={(e) => setProductSearch(e.target.value)}
-                />
-              </label>
-            </div>
-
-            {loadingProducts ? (
-              <div className="state-block">
-                <div className="spinner" />
-                <p>Loading products…</p>
+          {/* Metrics show above the two lists */}
+          {activeSection !== 'add' && (
+            <div className="metrics-grid">
+              <div className="metric">
+                <span className="metric-label">Products</span>
+                <strong className="metric-value">{products.length}</strong>
               </div>
-            ) : (
-              <div className="table-wrap">
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      <th>ID</th>
-                      <th>Product</th>
-                      <th>Category</th>
-                      <th>Price</th>
-                      <th className="col-actions">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredProducts.map((p) => (
-                      <tr key={p.id}>
-                        <td className="cell-muted">#{p.id}</td>
-                        <td>
-                          <div className="cell-product">
-                            <img src={p.imageUrl || PLACEHOLDER_IMAGE} alt={p.name} />
-                            <div>
-                              <strong>{p.name}</strong>
-                              <p>{p.description}</p>
+              <div className="metric">
+                <span className="metric-label">Orders</span>
+                <strong className="metric-value">{orders.length}</strong>
+              </div>
+              <div className="metric">
+                <span className="metric-label">Order value</span>
+                <strong className="metric-value">₹{totalRevenue.toLocaleString('en-IN')}</strong>
+              </div>
+              <div className="metric">
+                <span className="metric-label">Pending</span>
+                <strong className="metric-value">{pendingOrdersCount}</strong>
+              </div>
+            </div>
+          )}
+
+          {/* ===== Add / edit product ===== */}
+          {activeSection === 'add' && (
+            <section className="panel">
+              <form onSubmit={handleSubmit} className="form">
+                <div className="form-grid">
+                  <label className="field">
+                    <span>Product name *</span>
+                    <input
+                      type="text"
+                      placeholder="e.g. UltraBook Pro M3"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      required
+                    />
+                  </label>
+
+                  <label className="field">
+                    <span>Price (₹) *</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      placeholder="e.g. 89999"
+                      value={price}
+                      onChange={(e) => setPrice(e.target.value)}
+                      required
+                    />
+                  </label>
+
+                  <label className="field">
+                    <span>Category *</span>
+                    <input
+                      type="text"
+                      placeholder="e.g. Laptop, Mobile, Audio"
+                      value={category}
+                      onChange={(e) => setCategory(e.target.value)}
+                      required
+                    />
+                  </label>
+
+                  <label className="field">
+                    <span>Image URL</span>
+                    <input
+                      type="text"
+                      placeholder="https://…"
+                      value={imageUrl}
+                      onChange={(e) => setImageUrl(e.target.value)}
+                    />
+                  </label>
+
+                  <label className="field field-full">
+                    <span>Description / specifications *</span>
+                    <textarea
+                      placeholder="Detailed hardware specifications and description…"
+                      value={description}
+                      onChange={(e) => setDescription(e.target.value)}
+                      rows={4}
+                      required
+                    />
+                  </label>
+                </div>
+
+                <div className="form-actions">
+                  {editingId && (
+                    <button type="button" className="btn btn-outline" onClick={cancelEdit}>
+                      Cancel
+                    </button>
+                  )}
+                  <button type="submit" className="btn btn-dark">
+                    {editingId ? 'Save changes' : 'Add product'}
+                  </button>
+                </div>
+              </form>
+            </section>
+          )}
+
+          {/* ===== Products list ===== */}
+          {activeSection === 'products' && (
+            <section className="panel panel-flush">
+              <div className="table-toolbar">
+                <label className="search-field">
+                  <Search size={16} strokeWidth={1.5} />
+                  <input
+                    type="search"
+                    placeholder="Filter products…"
+                    value={productSearch}
+                    onChange={(e) => setProductSearch(e.target.value)}
+                  />
+                </label>
+              </div>
+
+              {loadingProducts ? (
+                <div className="state-block">
+                  <div className="spinner" />
+                  <p>Loading products…</p>
+                </div>
+              ) : (
+                <div className="table-wrap">
+                  <table className="data-table">
+                    <thead>
+                      <tr>
+                        <th>ID</th>
+                        <th>Product</th>
+                        <th>Category</th>
+                        <th>Price</th>
+                        <th className="col-actions">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredProducts.map((p) => (
+                        <tr key={p.id}>
+                          <td className="cell-muted">#{p.id}</td>
+                          <td>
+                            <div className="cell-product">
+                              <img src={p.imageUrl || PLACEHOLDER_IMAGE} alt={p.name} />
+                              <div>
+                                <strong>{p.name}</strong>
+                                <p>{p.description}</p>
+                              </div>
                             </div>
-                          </div>
-                        </td>
-                        <td>
-                          <span className="pill">{p.category}</span>
-                        </td>
-                        <td className="cell-price">₹{Number(p.price).toLocaleString('en-IN')}</td>
-                        <td className="col-actions">
-                          <div className="row-actions">
-                            <button type="button" className="btn-text" onClick={() => handleEdit(p)}>
-                              <Edit3 size={14} strokeWidth={1.5} />
-                              <span>Edit</span>
-                            </button>
-                            <button
-                              type="button"
-                              className="btn-text btn-text-danger"
-                              onClick={() => handleDeleteProduct(p.id)}
-                            >
-                              <Trash2 size={14} strokeWidth={1.5} />
-                              <span>Delete</span>
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
+                          </td>
+                          <td>
+                            <span className="pill">{p.category}</span>
+                          </td>
+                          <td className="cell-price">
+                            ₹{Number(p.price).toLocaleString('en-IN')}
+                          </td>
+                          <td className="col-actions">
+                            <div className="row-actions">
+                              <button
+                                type="button"
+                                className="btn-text"
+                                onClick={() => handleEdit(p)}
+                              >
+                                <Edit3 size={14} strokeWidth={1.5} />
+                                <span>Edit</span>
+                              </button>
+                              <button
+                                type="button"
+                                className="btn-text btn-text-danger"
+                                onClick={() => handleDeleteProduct(p.id)}
+                              >
+                                <Trash2 size={14} strokeWidth={1.5} />
+                                <span>Delete</span>
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
 
-                    {filteredProducts.length === 0 && (
+                      {filteredProducts.length === 0 && (
+                        <tr>
+                          <td colSpan={5} className="cell-empty">
+                            No products match your search.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </section>
+          )}
+
+          {/* ===== Orders list ===== */}
+          {activeSection === 'orders' && (
+            <section className="panel panel-flush">
+              <div className="table-toolbar">
+                <label className="search-field">
+                  <Search size={16} strokeWidth={1.5} />
+                  <input
+                    type="search"
+                    placeholder="Filter orders by product or username…"
+                    value={orderSearch}
+                    onChange={(e) => setOrderSearch(e.target.value)}
+                  />
+                </label>
+              </div>
+
+              {loadingOrders ? (
+                <div className="state-block">
+                  <div className="spinner" />
+                  <p>Loading orders…</p>
+                </div>
+              ) : (
+                <div className="table-wrap">
+                  <table className="data-table">
+                    <thead>
                       <tr>
-                        <td colSpan={5} className="cell-empty">
-                          No products match your search.
-                        </td>
+                        <th>Order</th>
+                        <th>Product</th>
+                        <th>Qty</th>
+                        <th>Customer</th>
+                        <th>Status</th>
+                        <th>Update status</th>
+                        <th className="col-actions">Actions</th>
                       </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </section>
-        )}
-
-        {/* Orders table */}
-        {activeTab === 'orders' && (
-          <section className="panel panel-flush">
-            <div className="table-toolbar">
-              <label className="search-field">
-                <Search size={16} strokeWidth={1.5} />
-                <input
-                  type="search"
-                  placeholder="Filter orders by product or username…"
-                  value={orderSearch}
-                  onChange={(e) => setOrderSearch(e.target.value)}
-                />
-              </label>
-            </div>
-
-            {loadingOrders ? (
-              <div className="state-block">
-                <div className="spinner" />
-                <p>Loading orders…</p>
-              </div>
-            ) : (
-              <div className="table-wrap">
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      <th>Order</th>
-                      <th>Product</th>
-                      <th>Qty</th>
-                      <th>Customer</th>
-                      <th>Status</th>
-                      <th>Update status</th>
-                      <th className="col-actions">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredOrders.map((o) => (
-                      <tr key={o.id}>
-                        <td className="cell-muted">#{o.id}</td>
-                        <td>
-                          <strong>{o.productName || `Product #${o.productId}`}</strong>
-                        </td>
-                        <td>{o.quantity}</td>
-                        <td>@{o.username || 'guest'}</td>
-                        <td>
-                          <span className={`status status-${(o.status || 'PENDING').toLowerCase()}`}>
-                            {o.status || 'PENDING'}
-                          </span>
-                        </td>
-                        <td>
-                          <label className="select-field select-sm">
-                            <select
-                              value={o.status || 'PENDING'}
-                              onChange={(e) => handleUpdateOrderStatus(o, e.target.value)}
+                    </thead>
+                    <tbody>
+                      {filteredOrders.map((o) => (
+                        <tr key={o.id}>
+                          <td className="cell-muted">#{o.id}</td>
+                          <td>
+                            <strong>{o.productName || `Product #${o.productId}`}</strong>
+                          </td>
+                          <td>{o.quantity}</td>
+                          <td>@{o.username || 'guest'}</td>
+                          <td>
+                            <span
+                              className={`status status-${(o.status || 'PENDING').toLowerCase()}`}
                             >
-                              {ORDER_STATUSES.map((s) => (
-                                <option key={s} value={s}>
-                                  {s}
-                                </option>
-                              ))}
-                            </select>
-                          </label>
-                        </td>
-                        <td className="col-actions">
-                          <div className="row-actions">
-                            <button
-                              type="button"
-                              className="btn-text btn-text-danger"
-                              onClick={() => handleDeleteOrder(o.id)}
-                            >
-                              <Trash2 size={14} strokeWidth={1.5} />
-                              <span>Delete</span>
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
+                              {o.status || 'PENDING'}
+                            </span>
+                          </td>
+                          <td>
+                            <label className="select-field select-sm">
+                              <select
+                                value={o.status || 'PENDING'}
+                                onChange={(e) => handleUpdateOrderStatus(o, e.target.value)}
+                              >
+                                {ORDER_STATUSES.map((s) => (
+                                  <option key={s} value={s}>
+                                    {s}
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
+                          </td>
+                          <td className="col-actions">
+                            <div className="row-actions">
+                              <button
+                                type="button"
+                                className="btn-text btn-text-danger"
+                                onClick={() => handleDeleteOrder(o.id)}
+                              >
+                                <Trash2 size={14} strokeWidth={1.5} />
+                                <span>Delete</span>
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
 
-                    {filteredOrders.length === 0 && (
-                      <tr>
-                        <td colSpan={7} className="cell-empty">
-                          No orders recorded yet.
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </section>
-        )}
+                      {filteredOrders.length === 0 && (
+                        <tr>
+                          <td colSpan={7} className="cell-empty">
+                            No orders recorded yet.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </section>
+          )}
+        </div>
       </div>
     </div>
   );
