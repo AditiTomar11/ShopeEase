@@ -1,0 +1,32 @@
+server:
+  # Render injects PORT (10000 by default). Binding to it directly lets Render route
+  # traffic the moment Tomcat is up instead of waiting for its port scanner to find us.
+  # Falls back to 8081 for local development.
+  port: ${PORT:8081}
+
+spring:
+  application:
+    name: product-service
+  datasource:
+    url: jdbc:postgresql://dpg-dapro5rtqb8s73dilihg-a.oregon-postgres.render.com:5432/productdb?sslmode=require
+    username: microservices_db_mbzb_user
+    password: ${DB_PASSWORD}
+    hikari:
+      # The free Render instance has 0.1 CPU. Every pooled connection is a TLS
+      # handshake, so keep the pool small and don't eagerly open ten of them at boot.
+      maximum-pool-size: 5
+      minimum-idle: 1
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+
+eureka:
+  client:
+    service-url:
+      defaultZone: ${EUREKA_URL:http://localhost:8761/eureka}
+    # Nothing looks this service up through Eureka (the gateway and order-service
+    # call it by URL), so skip the registry download that otherwise blocks startup
+    # until the Eureka server answers or times out. The service still registers
+    # itself (asynchronously) and shows up in the Eureka dashboard.
+    fetch-registry: false

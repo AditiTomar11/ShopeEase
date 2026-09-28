@@ -1,0 +1,30 @@
+server:
+  # Render injects PORT (10000 by default); fall back to 8083 locally.
+  port: ${PORT:8083}
+
+spring:
+  application:
+    name: auth-service
+  datasource:
+    url: jdbc:postgresql://dpg-dapro5rtqb8s73dilihg-a.oregon-postgres.render.com:5432/authdb?sslmode=require
+    username: microservices_db_mbzb_user
+    password: ${DB_PASSWORD}
+    hikari:
+      # Small pool for the 0.1 CPU free-tier instance (each connection = a TLS handshake at boot).
+      maximum-pool-size: 5
+      minimum-idle: 1
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+
+eureka:
+  client:
+    service-url:
+      defaultZone: ${EUREKA_URL:http://localhost:8761/eureka}
+    # This service never looks others up via Eureka; skip the blocking registry fetch at boot.
+    fetch-registry: false
+
+jwt:
+  secret: ${JWT_SECRET}
+  expiration: 86400000

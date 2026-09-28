@@ -1,0 +1,234 @@
+/* ------------------------------------------------------------------
+   Our Story page
+   Uses the tokens and primitives defined in index.css.
+------------------------------------------------------------------ */
+
+.about-intro {
+  text-align: center;
+  padding: 72px 24px 56px;
+  max-width: 860px;
+}
+
+.about-title {
+  font-family: var(--font-display);
+  font-size: clamp(40px, 6vw, 68px);
+  font-weight: 500;
+  line-height: 1.05;
+  letter-spacing: -0.01em;
+  margin: 16px 0 24px;
+}
+
+.about-title em {
+  font-style: italic;
+  font-weight: 400;
+  color: var(--text-body);
+}
+
+.about-lead {
+  font-size: 18px;
+  line-height: 1.75;
+  color: var(--text-body);
+  max-width: 700px;
+  margin: 0 auto;
+}
+
+.about-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 24px;
+  max-width: 640px;
+  margin: 56px auto 0;
+  padding-top: 32px;
+  border-top: 1px solid var(--line);
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.stat-number {
+  font-family: var(--font-display);
+  font-size: 44px;
+  font-weight: 500;
+  line-height: 1;
+}
+
+.stat-label {
+  font-size: 12px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+/* Split story */
+.about-split {
+  display: grid;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
+  gap: 72px;
+  align-items: center;
+  padding-top: 40px;
+  padding-bottom: 96px;
+}
+
+.about-figure {
+  margin: 0;
+  aspect-ratio: 4 / 5;
+  overflow: hidden;
+  background: var(--surface-alt);
+}
+
+.about-figure img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.about-copy h2 {
+  font-family: var(--font-display);
+  font-size: clamp(30px, 3.4vw, 42px);
+  font-weight: 500;
+  line-height: 1.15;
+  margin: 14px 0 22px;
+}
+
+.about-copy p {
+  font-size: 16px;
+  line-height: 1.8;
+  color: var(--text-body);
+  margin-bottom: 18px;
+}
+
+/* Values */
+.values-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 40px;
+}
+
+.value {
+  padding-top: 24px;
+  border-top: 1px solid var(--text-main);
+}
+
+.value-num {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: 15px;
+  color: var(--text-muted);
+}
+
+.value h3 {
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-weight: 500;
+  margin: 12px 0 10px;
+}
+
+.value p {
+  color: var(--text-body);
+  line-height: 1.7;
+  font-size: 15px;
+}
+
+/* Architecture */
+.services-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  border-top: 1px solid var(--line);
+  border-left: 1px solid var(--line);
+}
+
+.service {
+  padding: 28px 24px 32px;
+  border-right: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  transition: background 0.25s ease;
+}
+
+.service:hover {
+  background: var(--accent-soft);
+}
+
+.service-port {
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.service h3 {
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 500;
+  margin: 12px 0 10px;
+}
+
+.service p {
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--text-body);
+}
+
+/* Reveal animation */
+.reveal {
+  opacity: 0;
+  transform: translateY(18px);
+  transition: opacity 0.7s ease, transform 0.7s ease;
+}
+
+.reveal.is-visible {
+  opacity: 1;
+  transform: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+}
+
+@media (max-width: 1024px) {
+  .services-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 860px) {
+  .about-split {
+    grid-template-columns: 1fr;
+    gap: 40px;
+    padding-bottom: 72px;
+  }
+
+  .about-figure {
+    aspect-ratio: 4 / 3;
+  }
+
+  .values-grid {
+    grid-template-columns: 1fr;
+    gap: 28px;
+  }
+}
+
+@media (max-width: 640px) {
+  .about-intro {
+    padding: 48px 20px 40px;
+  }
+
+  .about-stats {
+    gap: 12px;
+  }
+
+  .stat-number {
+    font-size: 34px;
+  }
+
+  .services-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
