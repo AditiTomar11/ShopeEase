@@ -11,15 +11,15 @@ spring:
         webflux:
           routes:
             - id: product-route
-              uri: https://microservices-demo-product.onrender.com
+              uri: https://shopeease-product.onrender.com
               predicates:
                 - Path=/products/**
             - id: order-route
-              uri: https://microservices-demo-order.onrender.com
+              uri: https://shopeease-order.onrender.com
               predicates:
                 - Path=/orders/**
             - id: auth-route
-              uri: https://microservices-demo-1-a497.onrender.com
+              uri: https://shopeease-er5a.onrender.com
               predicates:
                 - Path=/auth/**
 

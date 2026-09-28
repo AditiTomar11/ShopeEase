@@ -5,7 +5,7 @@ import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 
-@FeignClient(name = "product-service",url = "https://microservices-demo-product.onrender.com")
+@FeignClient(name = "product-service",url = "https://shopeease-product.onrender.com")
 public interface ProductClient {
 
     @GetMapping("/products/{id}")
