@@ -2126,9 +2126,3 @@ h4 {
     height: 78px;
   }
 }
-.admin-sidebar .admin-sidebar-title { color: #2b2b2b; }
-.admin-sidebar .admin-nav-item,
-.admin-sidebar .admin-nav-item svg { color: #333333; }
-.admin-sidebar .admin-nav-item:hover,
-.admin-sidebar .admin-nav-item.is-active { color: #111111; }
-.admin-sidebar .admin-nav-count { color: #555555; }
