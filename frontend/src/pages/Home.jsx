@@ -213,6 +213,61 @@ function Home({
         </div>
       </section>
 
+       {/* Categories */}
+      {categoryShowcase.length > 0 && (
+        <section id="categories" className="section section-alt">
+          <div className="container">
+            <header className="section-head">
+              <span className="eyebrow">Browse</span>
+              <h2 className="section-title">Shop by Category</h2>
+            </header>
+
+            <div className="category-grid">
+              {categoryShowcase.map(({ name, count, Icon }) => (
+                <button
+                  key={name}
+                  type="button"
+                  className="category-tile"
+                  onClick={() => {
+                    setActiveCategory(name);
+                    document.getElementById('products')?.scrollIntoView({ behavior: 'smooth' });
+                  }}
+                >
+                  <Icon size={30} strokeWidth={1.1} />
+                  <h3>{name}</h3>
+                  <p>
+                    {count} {count === 1 ? 'product' : 'products'}
+                  </p>
+                  <span className="tile-link">
+                    Browse <ArrowRight size={14} strokeWidth={1.5} />
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* Why us */}
+      <section className="section">
+        <div className="container">
+          <header className="section-head">
+            <span className="eyebrow">Our Promise</span>
+            <h2 className="section-title">Why ShopEase</h2>
+          </header>
+
+          <div className="feature-grid">
+            {WHY_CHOOSE_US.map(({ Icon, title, description }) => (
+              <div key={title} className="feature">
+                <Icon size={28} strokeWidth={1.1} />
+                <h3>{title}</h3>
+                <p>{description}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* Catalog */}
       <section id="products" className="section">
         <div className="container">
@@ -342,61 +397,6 @@ function Home({
               </button>
             </div>
           )}
-        </div>
-      </section>
-
-      {/* Categories */}
-      {categoryShowcase.length > 0 && (
-        <section id="categories" className="section section-alt">
-          <div className="container">
-            <header className="section-head">
-              <span className="eyebrow">Browse</span>
-              <h2 className="section-title">Shop by Category</h2>
-            </header>
-
-            <div className="category-grid">
-              {categoryShowcase.map(({ name, count, Icon }) => (
-                <button
-                  key={name}
-                  type="button"
-                  className="category-tile"
-                  onClick={() => {
-                    setActiveCategory(name);
-                    document.getElementById('products')?.scrollIntoView({ behavior: 'smooth' });
-                  }}
-                >
-                  <Icon size={30} strokeWidth={1.1} />
-                  <h3>{name}</h3>
-                  <p>
-                    {count} {count === 1 ? 'product' : 'products'}
-                  </p>
-                  <span className="tile-link">
-                    Browse <ArrowRight size={14} strokeWidth={1.5} />
-                  </span>
-                </button>
-              ))}
-            </div>
-          </div>
-        </section>
-      )}
-
-      {/* Why us */}
-      <section className="section">
-        <div className="container">
-          <header className="section-head">
-            <span className="eyebrow">Our Promise</span>
-            <h2 className="section-title">Why ShopEase</h2>
-          </header>
-
-          <div className="feature-grid">
-            {WHY_CHOOSE_US.map(({ Icon, title, description }) => (
-              <div key={title} className="feature">
-                <Icon size={28} strokeWidth={1.1} />
-                <h3>{title}</h3>
-                <p>{description}</p>
-              </div>
-            ))}
-          </div>
         </div>
       </section>
 
