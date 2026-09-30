@@ -1,22 +1,79 @@
 server:
   # Render injects PORT (10000 by default); fall back to 8083 locally.
   port: ${PORT:8083}
+  # Behind Render's proxy the client IP arrives in X-Forwarded-For; without this
+  # every request looks like it came from the proxy and IP-based rate limiting
+  # or logging would be useless.
+  forward-headers-strategy: framework
+  error:
+    include-message: never
+    include-stacktrace: never
+    include-binding-errors: never
 
 spring:
   application:
     name: auth-service
   datasource:
-    url: jdbc:postgresql://dpg-dapro5rtqb8s73dilihg-a.oregon-postgres.render.com:5432/authdb?sslmode=require
-    username: microservices_db_mbzb_user
+    # Overridable so the same image can point at Render Postgres, a local
+    # docker-compose database, or SQL Server (see application-sqlserver.yml).
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://dpg-dapro5rtqb8s73dilihg-a.oregon-postgres.render.com:5432/authdb?sslmode=require}
+    username: ${DB_USERNAME:microservices_db_mbzb_user}
     password: ${DB_PASSWORD}
     hikari:
       # Small pool for the 0.1 CPU free-tier instance (each connection = a TLS handshake at boot).
-      maximum-pool-size: 5
+      maximum-pool-size: ${DB_POOL_SIZE:5}
       minimum-idle: 1
+      # Give up fast instead of hanging a request thread behind a dead DB.
+      connection-timeout: 10000
   jpa:
     hibernate:
+      # Fine for a demo. Production would use `validate` plus Flyway migrations,
+      # because `update` never drops or renames a column and gives no rollback.
       ddl-auto: update
-    show-sql: true
+    open-in-view: false
+    show-sql: ${JPA_SHOW_SQL:false}
+  jackson:
+    default-property-inclusion: non_null
+
+# ---------------------------------------------------------------------------
+# JWT
+# ---------------------------------------------------------------------------
+jwt:
+  # Must be >= 32 bytes or the service refuses to start (see WeakSecretException).
+  # Never commit a real value; Render injects JWT_SECRET.
+  secret: ${JWT_SECRET}
+  # 24 hours, in milliseconds.
+  expiration: ${JWT_EXPIRATION_MS:86400000}
+  issuer: ${JWT_ISSUER:shopease-auth-service}
+
+# ---------------------------------------------------------------------------
+# Bootstrap admin (see AdminSeeder)
+# ---------------------------------------------------------------------------
+app:
+  admin:
+    username: ${ADMIN_USERNAME:admin}
+    password: ${ADMIN_PASSWORD:admin123}
+    role: ${ADMIN_ROLE:ADMIN}
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173,http://localhost:4173}
+    allowed-methods: GET,POST,PUT,DELETE,OPTIONS
+    allowed-headers: Authorization,Content-Type,X-Correlation-Id
+    exposed-headers: X-Correlation-Id
+    allow-credentials: true
+
+# ---------------------------------------------------------------------------
+# Logging — see src/main/resources/logback-spring.xml
+# ---------------------------------------------------------------------------
+logging:
+  level:
+    root: INFO
+    com.aditi.authservice: ${LOG_LEVEL_APP:INFO}
+    # Uncomment when diagnosing a token problem:
+    # com.aditi.authservice.infrastructure.security: DEBUG
+  pattern:
+    # Kept in sync with logback-spring.xml; Spring Boot uses it for early logs,
+    # before the logback config is applied.
+    console: "%d{HH:mm:ss.SSS} %-5level [%thread] %logger{36} - %msg%n"
 
 eureka:
   client:
@@ -24,7 +81,15 @@ eureka:
       defaultZone: ${EUREKA_URL:http://localhost:8761/eureka}
     # This service never looks others up via Eureka; skip the blocking registry fetch at boot.
     fetch-registry: false
+  instance:
+    prefer-ip-address: true
 
-jwt:
-  secret: ${JWT_SECRET}
-  expiration: 86400000
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true

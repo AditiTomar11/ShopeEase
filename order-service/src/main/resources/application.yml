@@ -1,26 +1,76 @@
 server:
   # Render injects PORT (10000 by default); fall back to 8082 locally.
   port: ${PORT:8082}
+  forward-headers-strategy: framework
+  error:
+    include-message: never
+    include-stacktrace: never
 
 spring:
   application:
     name: order-service
   datasource:
-    url: jdbc:postgresql://dpg-dapro5rtqb8s73dilihg-a.oregon-postgres.render.com:5432/orderdb?sslmode=require
-    username: microservices_db_mbzb_user
+    # Overridable: Render Postgres by default, local compose or SQL Server via profile.
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://dpg-dapro5rtqb8s73dilihg-a.oregon-postgres.render.com:5432/orderdb?sslmode=require}
+    username: ${DB_USERNAME:microservices_db_mbzb_user}
     password: ${DB_PASSWORD}
     hikari:
       # Small pool for the 0.1 CPU free-tier instance (each connection = a TLS handshake at boot).
-      maximum-pool-size: 5
+      maximum-pool-size: ${DB_POOL_SIZE:5}
       minimum-idle: 1
+      connection-timeout: 10000
   jpa:
     hibernate:
       ddl-auto: update
-    show-sql: true
+    open-in-view: false
+    show-sql: ${JPA_SHOW_SQL:false}
+  jackson:
+    default-property-inclusion: non_null
+
+# ---------------------------------------------------------------------------
+# The address of the other microservice.
+#
+# This is a config value, not a hard-coded string in a use case, because
+# OrderService depends on the domain port ProductCatalog — the Feign adapter
+# behind it is wired in BeanModule and reads this property.
+# ---------------------------------------------------------------------------
+product:
+  service:
+    url: ${PRODUCT_SERVICE_URL:https://shopeease-product.onrender.com}
+
+app:
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173,http://localhost:4173}
+    allowed-methods: GET,POST,PUT,DELETE,OPTIONS
+    allowed-headers: Authorization,Content-Type,X-Correlation-Id
+    exposed-headers: X-Correlation-Id
+    allow-credentials: true
+
+logging:
+  level:
+    root: INFO
+    com.aditi.order_service: ${LOG_LEVEL_APP:INFO}
+    # Set to DEBUG to see Feign's method/URL/status/duration lines:
+    # feign.Logger: DEBUG
+  pattern:
+    console: "%d{HH:mm:ss.SSS} %-5level [%thread] %logger{36} - %msg%n"
 
 eureka:
   client:
     service-url:
       defaultZone: ${EUREKA_URL:http://localhost:8761/eureka}
-    # ProductClient uses a fixed url, not service discovery; skip the blocking registry fetch at boot.
-    fetch-registry: false
+    # ProductCatalogFeignAdapter pins the URL, so the registry is never read.
+    fetch-registry: ${EUREKA_FETCH_REGISTRY:false}
+  instance:
+    prefer-ip-address: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: never

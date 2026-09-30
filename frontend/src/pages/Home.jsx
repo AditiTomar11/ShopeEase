@@ -100,8 +100,9 @@ function Home({
     try {
       for (let attempt = 1; ; attempt++) {
         try {
-          const res = await axiosInstance.get('/products');
-          const data = Array.isArray(res.data) ? res.data : [];
+          // Interceptor already unwrapped response.data.
+          const products = await axiosInstance.get('/products');
+          const data = Array.isArray(products) ? products : [];
           setProducts(data);
           if (onProductsLoaded) onProductsLoaded(data);
 

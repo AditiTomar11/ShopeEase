@@ -3,23 +3,84 @@ server:
   # traffic the moment Tomcat is up instead of waiting for its port scanner to find us.
   # Falls back to 8081 for local development.
   port: ${PORT:8081}
+  forward-headers-strategy: framework
+  error:
+    include-message: never
+    include-stacktrace: never
 
 spring:
   application:
     name: product-service
   datasource:
-    url: jdbc:postgresql://dpg-dapro5rtqb8s73dilihg-a.oregon-postgres.render.com:5432/productdb?sslmode=require
-    username: microservices_db_mbzb_user
+    # Overridable so one image can target Render Postgres, a local
+    # docker-compose database, or SQL Server (application-sqlserver.yml).
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://dpg-dapro5rtqb8s73dilihg-a.oregon-postgres.render.com:5432/productdb?sslmode=require}
+    username: ${DB_USERNAME:microservices_db_mbzb_user}
     password: ${DB_PASSWORD}
     hikari:
       # The free Render instance has 0.1 CPU. Every pooled connection is a TLS
       # handshake, so keep the pool small and don't eagerly open ten of them at boot.
-      maximum-pool-size: 5
+      maximum-pool-size: ${DB_POOL_SIZE:5}
       minimum-idle: 1
+      connection-timeout: 10000
   jpa:
     hibernate:
       ddl-auto: update
-    show-sql: true
+    open-in-view: false
+    show-sql: ${JPA_SHOW_SQL:false}
+  servlet:
+    multipart:
+      enabled: true
+      # Deliberately a little LARGER than app.upload.max-size-bytes. The container
+      # limit is a hard backstop; letting it fire first would abort the request
+      # before our own validation could return the friendly 413 with the limit
+      # spelled out. This way a 5.5 MB file is rejected by our code with a good
+      # message, and a 50 MB file is still stopped by Tomcat.
+      max-file-size: 6MB
+      max-request-size: 6MB
+      # Buffer small uploads in memory instead of writing a temp file. Anything
+      # larger spills to disk, which is slower but keeps the heap small.
+      file-size-threshold: 1MB
+  jackson:
+    default-property-inclusion: non_null
+
+# ---------------------------------------------------------------------------
+# Image storage — the FileStorage port's configuration
+# ---------------------------------------------------------------------------
+app:
+  storage:
+    # local = write to ./uploads and serve from /uploads/** (development, CI, demo)
+    # s3    = upload to an S3 bucket (production)
+    type: ${STORAGE_TYPE:local}
+    bucket: ${S3_BUCKET:shopease-product-images}
+    region: ${AWS_REGION:ap-south-1}
+    public-base-url: ${S3_PUBLIC_BASE_URL:https://shopease-product-images.s3.ap-south-1.amazonaws.com/}
+    # Leave both blank to use the default AWS credentials chain (instance role,
+    # ECS task role, ~/.aws/credentials). That is the production path.
+    access-key: ${AWS_ACCESS_KEY_ID:}
+    secret-key: ${AWS_SECRET_ACCESS_KEY:}
+    # true for MinIO / LocalStack / other S3-compatible stores; false for real AWS.
+    path-style-access: ${S3_PATH_STYLE_ACCESS:false}
+  upload:
+    max-size-bytes: ${UPLOAD_MAX_BYTES:5242880}   # 5 MB
+    dir: ${UPLOAD_DIR:uploads}
+    public-base-url: ${UPLOAD_PUBLIC_BASE_URL:/uploads/}
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173,http://localhost:4173}
+    allowed-methods: GET,POST,PUT,DELETE,OPTIONS
+    allowed-headers: Authorization,Content-Type,X-Correlation-Id
+    exposed-headers: X-Correlation-Id
+    allow-credentials: true
+
+# ---------------------------------------------------------------------------
+# Logging
+# ---------------------------------------------------------------------------
+logging:
+  level:
+    root: INFO
+    com.aditi.product_service: ${LOG_LEVEL_APP:INFO}
+  pattern:
+    console: "%d{HH:mm:ss.SSS} %-5level [%thread] %logger{36} - %msg%n"
 
 eureka:
   client:
@@ -29,4 +90,19 @@ eureka:
     # call it by URL), so skip the registry download that otherwise blocks startup
     # until the Eureka server answers or times out. The service still registers
     # itself (asynchronously) and shows up in the Eureka dashboard.
-    fetch-registry: false
+    fetch-registry: ${EUREKA_FETCH_REGISTRY:false}
+  instance:
+    prefer-ip-address: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        # Never expose env, heapdump or loggers on a public service: they leak
+        # configuration and secrets.
+        include: health,info,metrics
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: never

@@ -1,6 +1,10 @@
 server:
   # Render injects PORT (10000 by default); fall back to 8080 locally.
   port: ${PORT:8080}
+  forward-headers-strategy: framework
+  error:
+    include-message: never
+    include-stacktrace: never
 
 spring:
   application:
@@ -9,19 +13,119 @@ spring:
     gateway:
       server:
         webflux:
+          # -------------------------------------------------------------------
+          # Routes = the routing table, declared as data.
+          # -------------------------------------------------------------------
+          # uri  https://…   a fixed address. The default profile: no registry
+          #                    lookup, so a sleeping Eureka cannot delay startup.
+          # uri  lb://…      resolved through Eureka + Spring Cloud LoadBalancer.
+          #                    Used by the `discovery` profile
+          #                    (application-discovery.yml) — the real
+          #                    service-to-service routing story.
+          #
+          # predicates  conditions the request must match to use this route.
+          # filters     what to do to the request/response on the way through.
+          # -------------------------------------------------------------------
           routes:
             - id: product-route
-              uri: https://shopeease-product.onrender.com
+              uri: ${PRODUCT_SERVICE_URL:https://shopeease-product.onrender.com}
               predicates:
                 - Path=/products/**
+              filters:
+                # Strip nothing here — the path is forwarded as-is because
+                # product-service maps /products itself. (Adding
+                # StripPrefix=1 would make it 404, which is the classic
+                # gateway misconfiguration.)
+                - AddResponseHeader=X-Service,product-service
+
             - id: order-route
-              uri: https://shopeease-order.onrender.com
+              uri: ${ORDER_SERVICE_URL:https://shopeease-order.onrender.com}
               predicates:
                 - Path=/orders/**
+              filters:
+                - AddResponseHeader=X-Service,order-service
+
             - id: auth-route
-              uri: https://shopeease-er5a.onrender.com
+              uri: ${AUTH_SERVICE_URL:https://shopeease-er5a.onrender.com}
               predicates:
                 - Path=/auth/**
+              filters:
+                - AddResponseHeader=X-Service,auth-service
+      discovery:
+        locator:
+          enabled: false
+
+# ---------------------------------------------------------------------------
+# JWT — the gateway verifies every token, so the signing secret lives here too.
+# ---------------------------------------------------------------------------
+jwt:
+  secret: ${JWT_SECRET}
+  issuer: ${JWT_ISSUER:shopease-auth-service}
+
+# ---------------------------------------------------------------------------
+# Authorisation rules. Evaluated top to bottom; the first match wins.
+# See GatewaySecurityProperties for why this is configuration, not code.
+# ---------------------------------------------------------------------------
+app:
+  security:
+    # Anyone may call these — but only with the listed HTTP methods.
+    # GET /products is public (the shop is browsable signed-out) while
+    # POST/PUT/DELETE /products fall through to the authenticated/admin rules.
+    public-paths:
+      - /auth/login
+      - /auth/register
+      - /auth/health
+      - /products
+      - /products/images/limits
+      - /products/category/**
+      - /orders/health
+      - /health
+      - /actuator/health
+    public-methods: GET,HEAD,OPTIONS
+
+    # Any valid token is enough.
+    authenticated-paths:
+      - /auth/me
+      - /orders
+      - /orders/**
+      - /products/**
+
+    # A valid token AND the ADMIN role. The admin panel's create/update/delete
+    # and order-status actions all land here, so the `role === 'ADMIN'` check in
+    # the React app is now a convenience rather than the only thing standing
+    # between a customer and the delete button.
+    admin-paths:
+      - /products/images/**
+      - /products/with-image
+      - /products/*/image
+
+    # Keep the token so a downstream service can verify it independently.
+    # Set to true once the services sit on a private network, so the signed
+    # identity travels and the raw secret-bearing token does not.
+    strip-authorization: false
+
+    # Add X-User-Name / X-User-Role after verification. Only trustworthy because
+    # nothing but the gateway can reach the services.
+    forward-identity-headers: true
+
+  cors:
+    # Replace with your own Vercel domains in production. Patterns (not plain
+    # origins) so `https://*.vercel.app` covers every preview deployment.
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173,http://localhost:4173,https://shope-ease-iota.vercel.app,https://*.vercel.app}
+    allowed-methods: GET,POST,PUT,DELETE,OPTIONS
+    allowed-headers: Authorization,Content-Type,X-Correlation-Id
+    exposed-headers: X-Correlation-Id
+    allow-credentials: true
+
+logging:
+  level:
+    root: INFO
+    com.aditi.api_gateway: ${LOG_LEVEL_APP:INFO}
+    # Set to DEBUG to see the gateway's own match/forward decisions:
+    # org.springframework.cloud.gateway: DEBUG
+    # reactor.netty: DEBUG
+  pattern:
+    console: "%d{HH:mm:ss.SSS} %-5level [%thread] %logger{36} - %msg%n"
 
 eureka:
   client:
@@ -29,4 +133,17 @@ eureka:
       defaultZone: ${EUREKA_URL:http://localhost:8761/eureka}
     # Routes above use direct URLs, not lb://, so the registry is never read here.
     # Skipping the fetch avoids blocking startup on a sleeping Eureka server.
-    fetch-registry: false
+    fetch-registry: ${EUREKA_FETCH_REGISTRY:false}
+  instance:
+    prefer-ip-address: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: never

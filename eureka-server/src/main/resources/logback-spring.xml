@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Logback configuration for eureka-server.
+
+  Deliberately quieter than the business services. Eureka is infrastructure:
+  its own INFO chatter ("Registered instance ...") would be the loudest thing in
+  a combined log stream and would drown out the correlation ids you actually
+  go looking for. WARN and above is the useful signal here.
+-->
+<configuration>
+
+    <springProperty scope="context" name="SERVICE_NAME" source="spring.application.name" defaultValue="eureka-server"/>
+
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>${SERVICE_NAME} %d{HH:mm:ss.SSS} %-5level [%thread] %logger{40} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <!-- Netflix Eureka is extremely chatty at INFO on every heartbeat sweep. -->
+    <logger name="com.netflix.eureka" level="WARN"/>
+    <logger name="eureka" level="WARN"/>
+    <logger name="org.springframework" level="WARN"/>
+
+    <root level="INFO">
+        <appender-ref ref="CONSOLE"/>
+    </root>
+
+</configuration>

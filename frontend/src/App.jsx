@@ -59,8 +59,10 @@ function App() {
   // Fetch all products for global reference (used in wishlist drawer)
   const fetchAllProducts = async () => {
     try {
-      const res = await axiosInstance.get('/products');
-      setAllProducts(res.data || []);
+      // The response interceptor already unwrapped `response.data`, so `res`
+      // IS the array of products — there is no second `.data` to read.
+      const products = await axiosInstance.get('/products');
+      setAllProducts(Array.isArray(products) ? products : []);
     } catch (err) {
       // ignore silent fetch
     }

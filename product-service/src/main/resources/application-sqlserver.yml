@@ -1,0 +1,72 @@
+# ---------------------------------------------------------------------------
+# SQL Server profile:  --spring.profiles.active=sqlserver
+# ---------------------------------------------------------------------------
+# Run the SAME jar against Microsoft SQL Server instead of PostgreSQL.
+#
+# ---------------------------------------------------------------------------
+# What actually changes, and what does not
+# ---------------------------------------------------------------------------
+# 1. The JDBC URL and driver.  jdbc:postgresql://… -> jdbc:sqlserver://…
+#    Note SQL Server's URL uses semicolons for parameters, not '?' query
+#    strings, and 1433 is the default instance port.
+# 2. The username/password pair.
+# 3. Optionally the Hibernate dialect.
+#
+# Nothing in the Java code changes. Every @Entity, every derived query method
+# and every repository adapter is unchanged, because JPA is the abstraction that
+# hides the SQL dialect underneath. That is the single strongest argument for
+# putting persistence behind a repository port rather than writing SQL in the
+# service.
+#
+# ---------------------------------------------------------------------------
+# Real differences worth knowing (these are the interview follow-ups)
+# ---------------------------------------------------------------------------
+# * Identity: SQL Server has IDENTITY(1,1), Postgres has IDENTITY/BIGSERIAL.
+#   `@GeneratedValue(strategy = IDENTITY)` works on both; Hibernate emits the
+#   right DDL.
+# * String columns: SQL Server NVARCHAR vs Postgres VARCHAR. Without
+#   `@Column(length = n)` SQL Server defaults to NVARCHAR(255) for VARCHAR and
+#   will silently truncate a longer value. This project sets explicit lengths
+#   on every column, so it is portable.
+# * Booleans: SQL Server has no BOOLEAN; Hibernate maps boolean to BIT. A
+#   hand-written query using `WHERE active = true` works on both, but
+#   `WHERE active = 'true'` does not.
+# * Case sensitivity: SQL Server's default collation is case-INsensitive, so
+#   `findByUsername` matches 'Aditi' for 'aditi'. Postgres is case-sensitive.
+#   This is a real, subtle source of "it worked in dev, failed in prod" bugs.
+# * LIMIT/OFFSET vs OFFSET/FETCH: irrelevant here because we use Spring Data,
+#   but it matters the moment anyone writes a @Query with a literal LIMIT.
+# * Migrations: Flyway ships separate migration paths per database. `ddl-auto:
+#   update` is convenient for a demo but is not how you ship schema changes.
+#
+# ---------------------------------------------------------------------------
+# Trying it locally with Docker
+# ---------------------------------------------------------------------------
+#   docker run -d --name sqlserver \
+#     -e 'ACCEPT_EULA=Y' -e 'MSSQL_SA_PASSWORD=Your_strong@Passw0rd' \
+#     -p 1433:1433 mcr.microsoft.com/mssql/server:2022-latest
+#
+#   createdb equivalent: the database is created on first connection.
+spring:
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:sqlserver://localhost:1433;databaseName=productdb;encrypt=true;trustServerCertificate=true}
+    username: ${DB_USERNAME:sa}
+    password: ${DB_PASSWORD}
+    driver-class-name: com.microsoft.sqlserver.jdbc.SQLServerDriver
+    hikari:
+      maximum-pool-size: ${DB_POOL_SIZE:5}
+      minimum-idle: 1
+  jpa:
+    # Left unset on purpose: Hibernate 6 auto-detects the dialect from the
+    # JDBC metadata. Setting it manually is only needed when auto-detection is
+    # impossible (e.g. an old driver behind a proxy), and a WRONG manual dialect
+    # is a common source of subtly broken DDL.
+    database-platform: org.hibernate.dialect.SQLServerDialect
+    hibernate:
+      ddl-auto: update
+    show-sql: ${JPA_SHOW_SQL:false}
+
+logging:
+  level:
+    # Switch this on when the SQL dialect is the thing you are debugging.
+    org.hibernate.SQL: DEBUG

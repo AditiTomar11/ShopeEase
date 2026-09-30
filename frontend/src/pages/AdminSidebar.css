@@ -287,3 +287,87 @@ textarea.adm-input { min-height: 110px; resize: vertical; }
   .adm-form-grid { grid-template-columns: 1fr; }
   .adm-modal-body { grid-template-columns: 1fr; }
 }
+/* ===========================================================================
+   Product image upload (added for the AWS S3 integration)
+   =========================================================================== */
+
+.adm-hint {
+  display: block;
+  margin-top: 6px;
+  font-size: 0.78rem;
+  line-height: 1.4;
+  color: #6b6b6b;
+}
+
+/* Local preview of the file the admin just picked, shown before upload. */
+.adm-upload-preview {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 12px;
+  padding: 10px;
+  border: 1px dashed #cfc9bd;
+  border-radius: 10px;
+  background: #fbfaf7;
+}
+
+.adm-upload-preview img {
+  width: 84px;
+  height: 84px;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1px solid #e6e1d6;
+  background: #fff;
+}
+
+/* Upload progress bar. */
+.adm-progress {
+  position: relative;
+  margin-top: 12px;
+  height: 22px;
+  border-radius: 11px;
+  background: #eceadf;
+  overflow: hidden;
+}
+
+.adm-progress-bar {
+  height: 100%;
+  background: linear-gradient(90deg, #1f1c17, #4a4438);
+  /* Animate the width so a jump between progress events still reads smoothly. */
+  transition: width 180ms ease-out;
+}
+
+.adm-progress-label {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: #fff;
+  mix-blend-mode: difference;
+}
+
+/* Inline file input: hide the native button, keep the input focusable for
+   keyboard and screen-reader users. */
+input[type='file'].adm-input {
+  padding: 8px;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+input[type='file'].adm-input::file-selector-button {
+  margin-right: 12px;
+  padding: 8px 14px;
+  border: 1px solid #d8d2c4;
+  border-radius: 8px;
+  background: #fff;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+input[type='file'].adm-input::file-selector-button:hover {
+  background: #f3f1e9;
+}

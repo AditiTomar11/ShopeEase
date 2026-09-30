@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Logback configuration for auth-service.
+
+  Two things this file is here to demonstrate:
+
+  1. A pattern that makes log lines machine-greppable. A timestamp, a level, the
+     thread, the logger name, and — crucially — the MDC correlation id, so one
+     `grep 7f3c1a2e` reconstructs a request's path across every service.
+
+  2. Why there is a FILE appender here that is disabled by default.
+     Render collects a container's stdout/stderr and shows it in the dashboard's
+     Logs tab, so on Render the console appender is the file. The rolling file
+     appender is kept (and off) for running the service somewhere with a real
+     filesystem, which is the normal case on a VM or in Kubernetes.
+
+  If you are reading this because a log line is missing, check in order:
+    a) is the logger below org.springframework at DEBUG? (Spring is very chatty)
+    b) is the MDC empty? (the correlation filter must run first)
+    c) is the class calling LoggerFactory.getLogger(X.class) and not the
+       default no-arg getLogger(String)? the latter loses the class name
+-->
+<configuration>
+
+    <!-- Pull the service name from application.yml so all five services share one file. -->
+    <springProperty scope="context" name="SERVICE_NAME" source="spring.application.name" defaultValue="auth-service"/>
+    <property name="LOG_DIR" value="${LOG_DIR:-logs}"/>
+
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <!--
+              %d{HH:mm:ss.SSS}  timestamp, milliseconds: on a 0.1-CPU instance
+                                 the gap between two lines is often the interesting bit
+              %-5level           left-padded so levels line up and `grep ERROR` is readable
+              [%thread]          Tomcat serves ~200 requests on 200 threads; without this
+                                 you cannot tell a slow request from a slow query
+              [corr=%X{correlationId:-}]   MDC value, with a default so the line still
+                                 formats when there is no MDC (e.g. at startup)
+              %logger{36}        abbreviate the package path: c.a.authservice.infrastructure.security.JwtTokenService
+            -->
+            <pattern>${SERVICE_NAME} %d{HH:mm:ss.SSS} %-5level [%thread] [corr=%X{correlationId:-none}] %logger{40} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${LOG_DIR}/${SERVICE_NAME}.log</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <!-- Rotate daily OR at 10 MB, and keep 7 days. A single unbounded
+                 log file is a disk-full outage waiting to happen. -->
+            <fileNamePattern>${LOG_DIR}/${SERVICE_NAME}.%d{yyyy-MM-dd}.%i.log.gz</fileNamePattern>
+            <maxFileSize>10MB</maxFileSize>
+            <maxHistory>7</maxHistory>
+            <totalSizeCap>200MB</totalSizeCap>
+        </rollingPolicy>
+        <encoder>
+            <pattern>${SERVICE_NAME} %d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] [corr=%X{correlationId:-none}] %logger{40} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <!-- Third-party libraries at WARN: Spring Data logs every statement at DEBUG
+         and DEBUGs its transaction boundaries, which on this service means
+         thousands of lines an interviewer (or you, at 2am) will never read. -->
+    <logger name="org.springframework" level="WARN"/>
+    <logger name="org.hibernate" level="WARN"/>
+    <logger name="com.zaxxer.hikari" level="WARN"/>
+    <logger name="eureka" level="WARN"/>
+    <logger name="com.netflix.discovery" level="WARN"/>
+
+    <!-- A dedicated logger name for the request log, so its volume can be tuned
+         (or dropped) without touching application code. -->
+    <logger name="http.request" level="INFO"/>
+
+    <root level="INFO">
+        <appender-ref ref="CONSOLE"/>
+    </root>
+
+    <!-- Uncomment for local development:
+    <root level="DEBUG">
+        <appender-ref ref="CONSOLE"/>
+        <appender-ref ref="FILE"/>
+    </root>
+    -->
+
+</configuration>

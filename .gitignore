@@ -1,20 +1,50 @@
-# Java/Maven
+# ===========================================================================
+# Keep secrets, build output and local state out of git.
+# ===========================================================================
+# A leaked credential stays leaked even after the commit is deleted, because git
+# keeps history — so prevention matters more than cleanup.
+
+# ---- Java / Maven ----
 target/
 *.class
+*.jar
+!.mvn/wrapper/maven-wrapper.jar
 .mvn/wrapper/maven-wrapper.jar
 
-# Node
+# ---- Node ----
 frontend/node_modules/
 frontend/dist/
+node_modules/
+.vite/
 
-# Env/secrets
+# ---- Secrets and environment ----
+# Note the ORDER: the .example files are re-included at the bottom, because
+# `*.local` would otherwise swallow `.env.local.example`.
 .env
-frontend/.env
-application-local.yml
+.env.*
+*.local
+!.env.example
+!.env.*.example
+!.env.local.example
 
-# IDE
+# Spring profile overrides that may hold real credentials
+application-local.yml
+application-local.yaml
+application-*.local.yml
+
+# ---- Local runtime state ----
+# Local-filesystem image storage: regenerable, and must never be committed.
+uploads/
+logs/
+*.log
+
+# ---- IDE / OS ----
 .idea/
 *.iml
 .vscode/
-# Local env overrides (never commit)
-*.local
+.DS_Store
+Thumbs.db
+
+# ---- OS / editor cruft ----
+*.swp
+*~

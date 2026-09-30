@@ -2,8 +2,10 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Package, Plus, ClipboardList, Eye, Pencil, Trash2, RefreshCw, Search, X,
+  ImagePlus, Upload, Loader2,
 } from 'lucide-react';
 import axiosInstance from '../api/axiosInstance';
+import { uploadViaPresignedUrl, fetchUploadLimits, validateImageFile } from '../api/imageApi';
 import "./AdminSidebar.css";
 
 const STATUS_OPTIONS = ['PENDING', 'PROCESSING', 'SHIPPED', 'DELIVERED', 'CANCELLED'];
@@ -26,6 +28,13 @@ export default function AdminPanel() {
   const [productSearch, setProductSearch] = useState('');
   const [orderSearch, setOrderSearch] = useState('');
 
+  // ---------- image upload ----------
+  const [imageFile, setImageFile] = useState(null);
+  const [imagePreview, setImagePreview] = useState('');
+  const [uploadPercent, setUploadPercent] = useState(0);
+  const [uploading, setUploading] = useState(false);
+  const [uploadLimits, setUploadLimits] = useState({ maxMb: 5, directUploadAvailable: false });
+
   // Sirf ADMIN role ko access
   useEffect(() => {
     if (!isAdmin) navigate('/');
@@ -43,8 +52,9 @@ export default function AdminPanel() {
   // ---------- API (unchanged) ----------
   const fetchProducts = async () => {
     try {
-      const res = await axiosInstance.get('/products');
-      setProducts(Array.isArray(res.data) ? res.data : []);
+      // Interceptor already unwrapped response.data.
+      const products = await axiosInstance.get('/products');
+      setProducts(Array.isArray(products) ? products : []);
     } catch {
       showNotice('error', 'Could not load products. Please refresh.');
     }
@@ -52,8 +62,8 @@ export default function AdminPanel() {
 
   const fetchOrders = async () => {
     try {
-      const res = await axiosInstance.get('/orders');
-      setOrders(Array.isArray(res.data) ? res.data : []);
+      const orders = await axiosInstance.get('/orders');
+      setOrders(Array.isArray(orders) ? orders : []);
     } catch {
       showNotice('error', 'Could not load orders. Please refresh.');
     }
@@ -68,6 +78,22 @@ export default function AdminPanel() {
   useEffect(() => {
     if (isAdmin) loadAll();
   }, [isAdmin]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Ask the backend for its real upload limit, so the UI never tells a user
+  // "5 MB is fine" while the server would reject a 6 MB file with a 413.
+  useEffect(() => {
+    if (isAdmin) {
+      fetchUploadLimits().then(setUploadLimits).catch(() => {});
+    }
+  }, [isAdmin]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Revoke the object URL when it is replaced, otherwise every selected image
+  // leaks its blob for as long as the tab is open.
+  useEffect(() => {
+    return () => {
+      if (imagePreview) URL.revokeObjectURL(imagePreview);
+    };
+  }, [imagePreview]);
 
   // ---------- helpers ----------
   const productName = (order) =>
@@ -91,10 +117,46 @@ export default function AdminPanel() {
   const categories = [...new Set(products.map((p) => p.category).filter(Boolean))];
 
   // ---------- product form ----------
+  const resetImageState = () => {
+    if (imagePreview) URL.revokeObjectURL(imagePreview);
+    setImageFile(null);
+    setImagePreview('');
+    setUploadPercent(0);
+  };
+
   const openAdd = () => {
     setEditingId(null);
     setForm(EMPTY_FORM);
+    resetImageState();
     setSection('add');
+  };
+
+  // Choosing a file is a LOCAL operation: validate it and show a preview
+  // instantly. Nothing is uploaded until the form is submitted, so a user who
+  // changes their mind never leaves an orphaned object in the bucket.
+  const handleImageChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) {
+      resetImageState();
+      return;
+    }
+    const problem = validateImageFile(file);
+    if (problem) {
+      showNotice('error', problem);
+      e.target.value = '';
+      resetImageState();
+      return;
+    }
+    if (imagePreview) URL.revokeObjectURL(imagePreview);
+    setImageFile(file);
+    setImagePreview(URL.createObjectURL(file));
+  };
+
+  const clearImage = () => {
+    if (imagePreview) URL.revokeObjectURL(imagePreview);
+    setImageFile(null);
+    setImagePreview('');
+    setUploadPercent(0);
   };
 
   const openEdit = (product) => {
@@ -106,6 +168,9 @@ export default function AdminPanel() {
       imageUrl: product.imageUrl || '',
       description: product.description || '',
     });
+    // An existing product keeps its stored imageUrl; only the pending local file
+    // is cleared, so editing a name never silently drops the product's photo.
+    resetImageState();
     setViewProduct(null);
     setSection('add');
   };
@@ -129,22 +194,38 @@ export default function AdminPanel() {
       return;
     }
     setSaving(true);
+    setUploading(Boolean(imageFile));
     try {
+      // Step 1: get the image URL. When the backend is on S3 this is a direct
+      // browser-to-S3 upload; otherwise the bytes go through product-service.
+      let imageUrl = payload.imageUrl;
+      if (imageFile) {
+        const stored = await uploadViaPresignedUrl(imageFile, setUploadPercent);
+        imageUrl = stored.url;
+      }
+
+      // Step 2: create or update the product with that URL.
+      const productPayload = { ...payload, imageUrl };
       if (editingId) {
-        await axiosInstance.put(`/products/${editingId}`, payload);
+        await axiosInstance.put(`/products/${editingId}`, productPayload);
         showNotice('success', 'Product updated successfully!');
       } else {
-        await axiosInstance.post('/products', payload);
+        await axiosInstance.post('/products', productPayload);
         showNotice('success', 'New product created successfully!');
       }
       setForm(EMPTY_FORM);
       setEditingId(null);
+      resetImageState();
       await fetchProducts();
       setSection('products');
-    } catch {
-      showNotice('error', 'Could not save the product. Please try again.');
+    } catch (err) {
+      // err.message is already user-facing: the response interceptor turns a
+      // 413/415/500 into a readable sentence.
+      showNotice('error', err?.message || 'Could not save the product. Please try again.');
     } finally {
       setSaving(false);
+      setUploading(false);
+      setUploadPercent(0);
     }
   };
 
@@ -320,10 +401,62 @@ export default function AdminPanel() {
                       {categories.map((c) => <option key={c} value={c} />)}
                     </datalist>
                   </div>
-                  <div className="adm-field">
-                    <label htmlFor="adm-image">Image URL</label>
-                    <input id="adm-image" className="adm-input" name="imageUrl" value={form.imageUrl}
+                  <div className="adm-field full">
+                    <label htmlFor="adm-image">Product image</label>
+
+                    {/*
+                      accept is a client-side convenience filter in the OS file
+                      picker. It is NOT validation — a user can still pick
+                      "All files" and a curl caller can send anything — so the
+                      authoritative check is validateImageFile() plus the
+                      server-side whitelist in ImageService.
+                    */}
+                    <input
+                      id="adm-image"
+                      className="adm-input"
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp,image/gif,image/avif"
+                      onChange={handleImageChange}
+                    />
+
+                    <small className="adm-hint">
+                      JPG, PNG, WEBP, GIF or AVIF, up to {uploadLimits.maxMb} MB.
+                      {uploadLimits.directUploadAvailable
+                        ? ' Uploads go straight to S3.'
+                        : ' Uploads go through the API (local storage mode).'}
+                    </small>
+
+                    {/* Local preview while the user is still editing. */}
+                    {imagePreview && (
+                      <div className="adm-upload-preview">
+                        <img src={imagePreview} alt="Selected product" />
+                        <button type="button" className="adm-icon adm-icon-danger"
+                          onClick={clearImage} title="Remove selected image">
+                          <X size={16} />
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Upload progress. Only meaningful once the form is submitted. */}
+                    {uploading && (
+                      <div className="adm-progress" role="progressbar"
+                        aria-valuenow={uploadPercent} aria-valuemin={0} aria-valuemax={100}>
+                        <div className="adm-progress-bar" style={{ width: `${uploadPercent}%` }} />
+                        <span className="adm-progress-label">
+                          {uploadPercent < 100 ? `Uploading… ${uploadPercent}%` : 'Processing…'}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="adm-field full">
+                    <label htmlFor="adm-image-url">…or paste an image URL</label>
+                    <input id="adm-image-url" className="adm-input" name="imageUrl" value={form.imageUrl}
                       onChange={handleChange} placeholder="https://…" />
+                    <small className="adm-hint">
+                      Leave empty and upload a file above. An external URL is kept as-is,
+                      and nothing is deleted from that host when the product is removed.
+                    </small>
                   </div>
                   <div className="adm-field full">
                     <label htmlFor="adm-desc">Description</label>

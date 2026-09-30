@@ -1,0 +1,219 @@
+# ===========================================================================
+# Render Blueprint — the whole backend as code.
+# ===========================================================================
+# `render.yaml` is Render's infrastructure-as-code format. Instead of clicking
+# through the dashboard, the entire deployment is declared here, versioned in git
+# and reviewable in a pull request.
+#
+# Why that matters:
+#   * a new engineer deploys the system by pushing, not by following a wiki;
+#   * the infrastructure is reviewed with the code, so a changed environment
+#     variable shows up in a diff;
+#   * and it is reproducible — the same file recreates the same topology.
+#
+# Deploy:  Render dashboard -> Blueprints -> New Blueprint Instance -> pick this repo.
+#
+# ---------------------------------------------------------------------------
+# Why Docker and not Render's native Java runtime
+# ---------------------------------------------------------------------------
+# Render can build a Maven project directly, but a Dockerfile pins the JDK, the
+# base image and the JVM flags in version control. That matters here because the
+# services run on Render's 0.1 CPU / 512 MB free tier, where the JVM flags in
+# each Dockerfile (C1-only JIT, serial GC, capped heap) are the difference
+# between a 90-second and a 3-minute cold start.
+#
+# ---------------------------------------------------------------------------
+# The free-tier constraint that shapes this whole file
+# ---------------------------------------------------------------------------
+# A free workspace gets 750 instance-hours per month. A service that never sleeps
+# uses ~720. So exactly ONE service can stay warm around the clock; the rest spin
+# down after 15 idle minutes and take 1-3 minutes to come back.
+#
+# Keep the api-gateway (or product-service) on the Starter plan to remove the
+# cold start from the user's critical path — that is the single highest-value
+# change available, because every page load begins at the gateway.
+# ===========================================================================
+
+databases:
+  # One PostgreSQL instance can host several logical databases, which is far
+  # cheaper than three. A dedicated instance per database is the production
+  # choice: it isolates blast radius and lets each scale independently.
+  - name: shopease-db
+    databaseName: productdb
+    user: microservices_db_mbzb_user
+    plan: free
+    postgresMajorVersion: "16"
+    ipAllowList: []      # empty = only services inside this Render workspace
+
+services:
+  # -------------------------------------------------------------------------
+  # eureka-server — the service registry / service discovery server
+  # -------------------------------------------------------------------------
+  - type: web
+    name: shopease-eureka
+    runtime: docker
+    dockerfilePath: ./eureka-server/Dockerfile
+    dockerContext: ./eureka-server
+    plan: free
+    healthCheckPath: /actuator/health
+    envVars:
+      - key: JAVA_OPTS
+        value: "-XX:TieredStopAtLevel=1 -XX:+UseSerialGC -XX:MaxRAMPercentage=50"
+      - key: EUREKA_HOSTNAME
+        fromService:
+          name: shopease-eureka
+          type: web
+          property: host
+
+  # -------------------------------------------------------------------------
+  # api-gateway — the only service the browser talks to
+  # -------------------------------------------------------------------------
+  - type: web
+    name: shopease-gateway
+    runtime: docker
+    dockerfilePath: ./api-gateway/Dockerfile
+    dockerContext: ./api-gateway
+    plan: free
+    healthCheckPath: /actuator/health
+    envVars:
+      - key: JAVA_OPTS
+        value: "-XX:TieredStopAtLevel=1 -XX:+UseSerialGC -XX:MaxRAMPercentage=50"
+      # THE SAME SECRET the auth service signs with. HS256 is symmetric, so the
+      # verifier needs the identical key. generateSecret: true makes Render mint
+      # a random value and keep it in its secret store — it is never in git.
+      - key: JWT_SECRET
+        generateSecret: true
+      - key: EUREKA_URL
+        fromService:
+          name: shopease-eureka
+          type: web
+          property: host
+      - key: CORS_ALLOWED_ORIGINS
+        sync: false    # set this in the dashboard: your Vercel URL(s)
+      - key: PRODUCT_SERVICE_URL
+        fromService:
+          name: shopease-product
+          type: web
+          property: host
+      - key: ORDER_SERVICE_URL
+        fromService:
+          name: shopease-order
+          type: web
+          property: host
+      - key: AUTH_SERVICE_URL
+        fromService:
+          name: shopease-auth
+          type: web
+          property: host
+
+  # -------------------------------------------------------------------------
+  # product-service — catalogue + image upload
+  # -------------------------------------------------------------------------
+  - type: web
+    name: shopease-product
+    runtime: docker
+    dockerfilePath: ./product-service/Dockerfile
+    dockerContext: ./product-service
+    plan: free
+    # /health is cheaper than /actuator/health because it touches no database
+    # and no registry, so the check passes the instant Tomcat is up.
+    healthCheckPath: /health
+    envVars:
+      - key: JAVA_OPTS
+        value: "-XX:TieredStopAtLevel=1 -XX:+UseSerialGC -XX:MaxRAMPercentage=50"
+      - key: DB_PASSWORD
+        fromDatabase:
+          name: shopease-db
+          property: password
+      - key: SPRING_DATASOURCE_URL
+        fromDatabase:
+          name: shopease-db
+          property: connectionString
+      - key: EUREKA_URL
+        fromService:
+          name: shopease-eureka
+          type: web
+          property: host
+      # ---- image storage ----
+      # local = write to the container filesystem. Fine for a demo, but the
+      #         container is ephemeral: every redeploy and every scale-up loses
+      #         the uploads. Switch to s3 for anything real.
+      - key: STORAGE_TYPE
+        value: s3
+      - key: S3_BUCKET
+        sync: false
+      - key: AWS_REGION
+        sync: false
+      # Leave AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY unset in production so
+      # the default provider chain finds an instance or task role instead. A
+      # long-lived access key in a config file is a credential waiting to leak.
+      - key: S3_PUBLIC_BASE_URL
+        sync: false
+
+  # -------------------------------------------------------------------------
+  # order-service
+  # -------------------------------------------------------------------------
+  - type: web
+    name: shopease-order
+    runtime: docker
+    dockerfilePath: ./order-service/Dockerfile
+    dockerContext: ./order-service
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: JAVA_OPTS
+        value: "-XX:TieredStopAtLevel=1 -XX:+UseSerialGC -XX:MaxRAMPercentage=50"
+      - key: DB_PASSWORD
+        fromDatabase:
+          name: shopease-db
+          property: password
+      - key: SPRING_DATASOURCE_URL
+        fromService:
+          name: shopease-db
+          type: web
+          property: connectionString
+      # How order-service finds product-service. In the `discovery` profile this
+      # becomes lb://product-service and Eureka does the lookup instead.
+      - key: PRODUCT_SERVICE_URL
+        fromService:
+          name: shopease-product
+          type: web
+          property: host
+      - key: EUREKA_URL
+        fromService:
+          name: shopease-eureka
+          type: web
+          property: host
+
+  # -------------------------------------------------------------------------
+  # auth-service — registration, login, JWT issuance
+  # -------------------------------------------------------------------------
+  - type: web
+    name: shopease-auth
+    runtime: docker
+    dockerfilePath: ./auth-service/Dockerfile
+    dockerContext: ./auth-service
+    plan: free
+    healthCheckPath: /actuator/health
+    envVars:
+      - key: JAVA_OPTS
+        value: "-XX:TieredStopAtLevel=1 -XX:+UseSerialGC -XX:MaxRAMPercentage=50"
+      - key: DB_PASSWORD
+        fromDatabase:
+          name: shopease-db
+          property: password
+      - key: SPRING_DATASOURCE_URL
+        fromService:
+          name: shopease-db
+          type: web
+          property: connectionString
+      # Must be the SAME value as the gateway's JWT_SECRET.
+      - key: JWT_SECRET
+        generateSecret: true
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: EUREKA_URL
+        fromService:
+          name: shopease-eureka
+          type: web
+          property: host

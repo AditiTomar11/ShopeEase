@@ -11,26 +11,22 @@
 	<groupId>com.aditi</groupId>
 	<artifactId>api-gateway</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
-	<name/>
-	<description/>
-	<url/>
-	<licenses>
-		<license/>
-	</licenses>
-	<developers>
-		<developer/>
-	</developers>
-	<scm>
-		<connection/>
-		<developerConnection/>
-		<tag/>
-		<url/>
-	</scm>
+	<name>api-gateway</name>
+	<description>Edge routing, CORS, correlation ids and JWT authorisation.</description>
+
 	<properties>
 		<java.version>17</java.version>
 		<spring-cloud.version>2025.1.3</spring-cloud.version>
+		<jjwt.version>0.12.6</jjwt.version>
 	</properties>
+
 	<dependencies>
+		<!--
+		  WebFlux, not Spring MVC. The gateway is I/O bound: it spends its life
+		  waiting on downstream services. A reactive event loop holds hundreds of
+		  in-flight connections per thread where a servlet container holds one
+		  thread each — the whole reason a gateway should not use Tomcat.
+		-->
 		<dependency>
 			<groupId>org.springframework.cloud</groupId>
 			<artifactId>spring-cloud-starter-gateway-server-webflux</artifactId>
@@ -38,6 +34,44 @@
 		<dependency>
 			<groupId>org.springframework.cloud</groupId>
 			<artifactId>spring-cloud-starter-netflix-eureka-client</artifactId>
+		</dependency>
+
+		<!--
+		  Spring Cloud LoadBalancer. Only needed for the `discovery` profile where
+		  routes use lb://service-name, but it is tiny and having it present means
+		  switching profiles is a config change, not a dependency change.
+		-->
+		<dependency>
+			<groupId>org.springframework.cloud</groupId>
+			<artifactId>spring-cloud-starter-loadbalancer</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-actuator</artifactId>
+		</dependency>
+
+		<!--
+		  The gateway verifies the JWT that auth-service issued, using the SAME
+		  secret and the SAME library. That symmetry is what makes HS256 work: a
+		  symmetric signature is verified with the identical key that signed it.
+		-->
+		<dependency>
+			<groupId>io.jsonwebtoken</groupId>
+			<artifactId>jjwt-api</artifactId>
+			<version>${jjwt.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>io.jsonwebtoken</groupId>
+			<artifactId>jjwt-impl</artifactId>
+			<version>${jjwt.version}</version>
+			<scope>runtime</scope>
+		</dependency>
+		<dependency>
+			<groupId>io.jsonwebtoken</groupId>
+			<artifactId>jjwt-jackson</artifactId>
+			<version>${jjwt.version}</version>
+			<scope>runtime</scope>
 		</dependency>
 
 		<dependency>
@@ -51,6 +85,7 @@
 			<scope>test</scope>
 		</dependency>
 	</dependencies>
+
 	<dependencyManagement>
 		<dependencies>
 			<dependency>

@@ -1,0 +1,73 @@
+# ===========================================================================
+# Deploy the React frontend to Vercel.
+# ===========================================================================
+# Triggered on pushes to main and on pull requests (a preview deployment, which
+# is what makes "open a PR and click the link" work for frontend review).
+#
+# Vercel is the right tool for this half of the system: it is a static host with
+# a CDN in front of it, it gives every commit an immutable preview URL, and its
+# "zero configuration" detection understands Vite. The backend is a different
+# problem — long-running JVM processes that need a filesystem, a database
+# connection and real memory — which is why it goes to Render instead. Putting a
+# Spring Boot service on a static host would mean rebuilding the backend on
+# every request, which is why nobody does it.
+name: Deploy frontend
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+# One deployment per branch; a newer push supersedes an in-flight one.
+concurrency:
+  group: vercel-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  verify-and-deploy:
+    name: verify then deploy
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install
+        run: npm ci
+        working-directory: frontend
+
+      - name: Build
+        # A green build is required before a single byte is published.
+        env:
+          VITE_API_URL: ${{ secrets.VITE_API_URL }}
+        run: npm run build
+        working-directory: frontend
+
+      - name: Deploy to Vercel
+        # The Vercel CLI rather than a marketplace action: no third-party action
+        # runs with access to your Vercel token, and the CLI is versioned by
+        # npm rather than by a git tag someone has to remember to bump.
+        #
+        # Two secrets are needed, and they mean different things:
+        #   VERCEL_TOKEN         the API token  -> grants access to the ACCOUNT
+        #   VERCEL_ORG_ID / PROJECT_ID  which project to publish to
+        # Both VITE_API_URL and CORS must also agree: the browser will only send
+        # requests to an origin the gateway's CORS_ALLOWED_ORIGINS lists.
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: |
+          npm install --global vercel@latest
+          vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
+          vercel build --prod --token="$VERCEL_TOKEN"
+          vercel deploy --prebuilt --prod --token="$VERCEL_TOKEN"
+        working-directory: frontend

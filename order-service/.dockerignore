@@ -1,0 +1,30 @@
+# Keep the build context small: every file here is uploaded to the builder on
+# every deploy, and a large context slows the build and busts the layer cache.
+
+target/
+.mvn/wrapper/maven-wrapper.jar
+*.class
+*.jar
+!.mvn/wrapper/maven-wrapper.jar
+
+.git/
+.github/
+.gitignore
+.gitattributes
+
+# Never let a local override or a .env file end up inside a production image.
+.env
+.env.*
+application-local.yml
+application-local.yaml
+*.local
+
+# Local uploads from the dev filesystem backend must not be baked into the image.
+uploads/
+
+.idea/
+.vscode/
+*.iml
+*.log
+logs/
+README.md

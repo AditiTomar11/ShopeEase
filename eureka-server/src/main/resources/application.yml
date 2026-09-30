@@ -1,12 +1,45 @@
 server:
   # Render injects PORT (10000 by default); fall back to 8761 locally.
   port: ${PORT:8761}
-
-eureka:
-  client:
-    register-with-eureka: false
-    fetch-registry: false
+  forward-headers-strategy: framework
 
 spring:
   application:
     name: eureka-server
+
+eureka:
+  client:
+    # A standalone server is not a client of itself.
+    register-with-eureka: false
+    fetch-registry: false
+  instance:
+    hostname: ${EUREKA_HOSTNAME:localhost}
+    prefer-ip-address: true
+  server:
+    # Replicate/peer config would go here for a real cluster. A single Eureka is
+    # a single point of failure — the honest reason a production system runs an
+    # odd number of peers so a majority always survives.
+    enable-self-preservation: true
+    # Self-preservation keeps serving the last known registry during a mass
+    # timeout, trading staleness for availability. Turn it off when clients are
+    # chatty and timings are unreliable, or a single slow client evicts healthy
+    # instances.
+    renewal-interval-in-econds: 30
+    eviction-interval-timer-in-ms: 60000
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: never
+
+logging:
+  level:
+    root: INFO
+    com.netflix.eureka: WARN
+    eureka: WARN

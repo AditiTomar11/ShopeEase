@@ -1,0 +1,106 @@
+# ===========================================================================
+# Local development dependencies.
+#
+#   docker compose up -d
+#
+# Not used in production: on Render the databases are managed Postgres
+# instances and the S3 bucket is a real AWS bucket. This file exists so the
+# whole system runs on a laptop with no cloud account and no free-tier quota.
+#
+# Everything is bound to localhost only. Publishing a database port to 0.0.0.0
+# is one of the most common ways real credentials get exposed.
+# ===========================================================================
+
+services:
+  # -------------------------------------------------------------------------
+  # One PostgreSQL instance hosting all three logical databases.
+  # Cheaper than three containers; the alternative — three instances — is what
+  # production would do, to isolate blast radius and scale each independently.
+  # -------------------------------------------------------------------------
+  postgres:
+    image: postgres:16-alpine
+    container_name: shopease-postgres
+    environment:
+      POSTGRES_USER: shopease
+      POSTGRES_PASSWORD: shopease
+      # Creates this database on first boot.
+      POSTGRES_DB: productdb
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      # Executed only the first time the data directory is empty.
+      - ./infra/sql/init-databases.sql:/docker-entrypoint-initdb.d/init-databases.sql:ro
+    healthcheck:
+      # `pg_isready` is the accurate check. `curl localhost` is a common wrong
+      # answer: postgres does not speak HTTP, so that check passes/fails for
+      # reasons unrelated to the database being ready.
+      test: ["CMD-SHELL", "pg_isready -U shopease -d productdb"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  # -------------------------------------------------------------------------
+  # Optional: SQL Server, to demonstrate the `sqlserver` profile.
+  # ~2 GB of RAM — start it only when you need it:
+  #   docker compose --profile sqlserver up -d
+  # -------------------------------------------------------------------------
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: shopease-sqlserver
+    profiles: ["sqlserver"]
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: "Your_strong@Passw0rd"
+      MSSQL_PID: Developer
+    ports:
+      - "1433:1433"
+    healthcheck:
+      # /opt/mssql-tools18/bin/sqlcmd on the 2022 image; the path moved between
+      # image versions, which is why it is written out rather than aliased.
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"$$MSSQL_SA_PASSWORD\" -Q 'SELECT 1' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  # -------------------------------------------------------------------------
+  # Optional: MinIO — an S3-compatible object store, so the S3 code path can be
+  # exercised without an AWS account.
+  #
+  #   docker compose --profile minio up -d
+  #   STORAGE_TYPE=s3 S3_BUCKET=product-images \
+  #   AWS_ACCESS_KEY_ID=minioadmin AWS_SECRET_ACCESS_KEY=minioadmin \
+  #   AWS_REGION=us-east-1 S3_PATH_STYLE_ACCESS=true \
+  #   S3_PUBLIC_BASE_URL=http://localhost:9000/product-images/ \
+  #     ./product-service/mvnw spring-boot:run
+  #
+  # The console is at http://localhost:9001. Create the bucket, then make it
+  # readable by setting a policy that allows s3:GetObject on arn:aws:s3:::product-images/*
+  # — public READ on objects, and nothing else. A wildcard principal with
+  # PutObject would let anyone overwrite your images.
+  # -------------------------------------------------------------------------
+  minio:
+    image: minio/minio:latest
+    container_name: shopease-minio
+    profiles: ["minio"]
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      - "9000:9000"   # S3 API
+      - "9001:9001"   # console
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  postgres-data:
+  minio-data:
