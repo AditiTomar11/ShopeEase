@@ -1,4 +1,4 @@
-package com.aditi.authservice.application.config;
+package com.aditi.authservice.infrastructure.config;
 
 import com.aditi.authservice.domain.model.User;
 import com.aditi.authservice.domain.repository.UserRepository;

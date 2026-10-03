@@ -1,10 +1,3 @@
-/* ===== Admin dashboard: dark sidebar + light content (self-contained, `adm-` prefix) ===== */
-.adm-page {
-  padding-top: var(--header-h, 68px);          /* fixed site header ke neeche */
-  font-family: var(--font-body, 'Segoe UI', system-ui, -apple-system, sans-serif);
-  color: #212529;
-  background: #eceff1;
-}
 .adm-page h1, .adm-page h2, .adm-page h3 { font-family: inherit; }
 
 .adm-layout {
