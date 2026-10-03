@@ -1,26 +1,20 @@
-package com.aditi.authservice.entity;
+package com.aditi.authservice.infrastructure.entity;
 
 import jakarta.persistence.*;
 
 @Entity
 @Table(name = "users")
-public class User {
+public class UserEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-
-    @Column(unique = true, nullable = false)
     private String username;
-
-    @Column(nullable = false)
     private String password;
+    private String role;
 
-    @Column(nullable = false)
-    private String role;   // "CUSTOMER" ya "ADMIN"
+    public UserEntity() {}
 
-    public User() {}
-
-    public User(Long id, String username, String password, String role) {
+    public UserEntity(Long id, String username, String password, String role) {
         this.id = id;
         this.username = username;
         this.password = password;

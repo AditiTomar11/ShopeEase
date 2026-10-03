@@ -1,7 +1,8 @@
-package com.aditi.authservice.config;
+package com.aditi.authservice.application.config;
 
-import com.aditi.authservice.entity.User;
-import com.aditi.authservice.repository.UserRepository;
+import com.aditi.authservice.domain.model.User;
+import com.aditi.authservice.domain.repository.UserRepository;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
@@ -12,6 +13,7 @@ public class AdminSeeder implements CommandLineRunner {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
 
+    @Autowired
     public AdminSeeder(UserRepository userRepository, PasswordEncoder passwordEncoder) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
@@ -20,14 +22,9 @@ public class AdminSeeder implements CommandLineRunner {
     @Override
     public void run(String... args) {
         if (userRepository.findByUsername("admin").isEmpty()) {
-            User admin = new User(
-                    null,
-                    "admin",
-                    passwordEncoder.encode("admin123"),
-                    "ADMIN"
-            );
+            User admin = new User(null, "admin", passwordEncoder.encode("admin123"), "ADMIN");
             userRepository.save(admin);
-            System.out.println("Default admin account created: admin / admin123");
+            System.out.println("Admin account seeded.");
         }
     }
 }

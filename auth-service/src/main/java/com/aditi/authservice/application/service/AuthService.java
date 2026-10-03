@@ -1,29 +1,29 @@
-package com.aditi.authservice.controller;
+package com.aditi.authservice.application.service;
 
+import com.aditi.authservice.domain.model.User;
+import com.aditi.authservice.domain.repository.UserRepository;
 import com.aditi.authservice.dto.AuthRequest;
 import com.aditi.authservice.dto.AuthResponse;
-import com.aditi.authservice.entity.User;
-import com.aditi.authservice.repository.UserRepository;
-import com.aditi.authservice.util.JwtUtil;
+import com.aditi.authservice.infrastructure.security.JwtUtil;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.stereotype.Service;
 
-@RestController
-@RequestMapping("/auth")
-public class AuthController {
+@Service
+public class AuthService {
 
-    @Autowired
-    private UserRepository userRepository;
-
-    @Autowired
-    private PasswordEncoder passwordEncoder;
+    private final UserRepository userRepository;
+    private final PasswordEncoder passwordEncoder;
+    private final JwtUtil jwtUtil;
 
     @Autowired
-    private JwtUtil jwtUtil;
+    public AuthService(UserRepository userRepository, PasswordEncoder passwordEncoder, JwtUtil jwtUtil) {
+        this.userRepository = userRepository;
+        this.passwordEncoder = passwordEncoder;
+        this.jwtUtil = jwtUtil;
+    }
 
-    @PostMapping("/register")
-    public String register(@RequestBody AuthRequest request) {
+    public String register(AuthRequest request) {
         if (userRepository.findByUsername(request.getUsername()).isPresent()) {
             throw new RuntimeException("Username already taken");
         }
@@ -37,8 +37,7 @@ public class AuthController {
         return "User registered successfully";
     }
 
-    @PostMapping("/login")
-    public AuthResponse login(@RequestBody AuthRequest request) {
+    public AuthResponse login(AuthRequest request) {
         User user = userRepository.findByUsername(request.getUsername())
                 .orElseThrow(() -> new RuntimeException("Invalid username or password"));
 

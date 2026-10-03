@@ -1,4 +1,4 @@
-package com.aditi.authservice.util;
+package com.aditi.authservice.infrastructure.security;
 
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;

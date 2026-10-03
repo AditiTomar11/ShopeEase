@@ -1,4 +1,4 @@
-package com.aditi.authservice.config;
+package com.aditi.authservice.application.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
