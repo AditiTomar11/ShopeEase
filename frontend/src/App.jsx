@@ -10,9 +10,9 @@ import AdminPanel from './pages/AdminPanel';
 import CartDrawer from './components/CartDrawer';
 import WishlistDrawer from './components/WishlistDrawer';
 import ProductModal from './components/ProductModal';
-import axiosInstance from './api/axiosInstance';
 import CompareBar from './components/CompareBar';
 import CompareModal from './components/CompareModal';
+import axiosInstance from './api/axiosInstance';
 
 // Start every new route at the top of the page (hash links keep their target).
 function ScrollToTop() {
@@ -41,34 +41,16 @@ function App() {
       return [];
     }
   });
-const [compareIds, setCompareIds] = useState(() => {
-  try {
-    const saved = localStorage.getItem('shopease_compare');
-    return saved ? JSON.parse(saved) : [];
-  } catch (e) {
-    return [];
-  }
-});
-const [isCompareOpen, setIsCompareOpen] = useState(false);
 
-useEffect(() => {
-  localStorage.setItem('shopease_compare', JSON.stringify(compareIds));
-}, [compareIds]);
-
-const handleToggleCompare = (productId) => {
-  setCompareIds((prev) => {
-    if (prev.includes(productId)) {
-      return prev.filter((id) => id !== productId);
+  const [compareIds, setCompareIds] = useState(() => {
+    try {
+      const saved = localStorage.getItem('shopease_compare');
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      return [];
     }
-    if (prev.length >= 3) {
-      showToast('You can compare up to 3 products at a time');
-      return prev;
-    }
-    return [...prev, productId];
   });
-};
-
-const compareProducts = allProducts.filter((p) => compareIds.includes(p.id));
+  const [isCompareOpen, setIsCompareOpen] = useState(false);
 
   const [allProducts, setAllProducts] = useState([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
@@ -85,6 +67,11 @@ const compareProducts = allProducts.filter((p) => compareIds.includes(p.id));
   useEffect(() => {
     localStorage.setItem('shopease_wishlist', JSON.stringify(wishlistIds));
   }, [wishlistIds]);
+
+  // Persist compare list to localStorage
+  useEffect(() => {
+    localStorage.setItem('shopease_compare', JSON.stringify(compareIds));
+  }, [compareIds]);
 
   // Fetch all products for global reference (used in wishlist drawer)
   const fetchAllProducts = async () => {
@@ -159,6 +146,22 @@ const compareProducts = allProducts.filter((p) => compareIds.includes(p.id));
 
   const wishlistedProducts = allProducts.filter((p) => wishlistIds.includes(p.id));
 
+  // Compare operations
+  const handleToggleCompare = (productId) => {
+    setCompareIds((prev) => {
+      if (prev.includes(productId)) {
+        return prev.filter((id) => id !== productId);
+      }
+      if (prev.length >= 3) {
+        showToast('You can compare up to 3 products at a time');
+        return prev;
+      }
+      return [...prev, productId];
+    });
+  };
+
+  const compareProducts = allProducts.filter((p) => compareIds.includes(p.id));
+
   // Direct Buy Now handler
   const handleBuyNow = async (product, quantity = 1) => {
     const isLoggedIn = !!localStorage.getItem('token');
@@ -224,6 +227,7 @@ const compareProducts = allProducts.filter((p) => compareIds.includes(p.id));
         </main>
 
         <Footer />
+
         <CompareBar
           compareProducts={compareProducts}
           onRemove={handleToggleCompare}
@@ -240,6 +244,7 @@ const compareProducts = allProducts.filter((p) => compareIds.includes(p.id));
             onBuyNow={handleBuyNow}
           />
         )}
+
         {/* Global Drawers & Modals */}
         <CartDrawer
           isOpen={isCartOpen}
