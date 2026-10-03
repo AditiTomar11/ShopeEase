@@ -1,4 +1,4 @@
-import { Heart } from 'lucide-react';
+import { Heart, Scale } from 'lucide-react';
 
 const PLACEHOLDER_IMAGE =
   'https://images.unsplash.com/photo-1526738549149-8e07eca6c147?w=600&auto=format&fit=crop&q=80';
@@ -9,6 +9,8 @@ export default function ProductCard({
   onBuyNow,
   onToggleWishlist,
   isWishlisted,
+  onToggleCompare,
+  isCompared,
   onQuickView,
 }) {
   return (
@@ -33,6 +35,16 @@ export default function ProductCard({
           onClick={() => onToggleWishlist(product.id)}
         >
           <Heart size={18} strokeWidth={1.5} fill={isWishlisted ? 'currentColor' : 'none'} />
+        </button>
+
+        <button
+          type="button"
+          className={`compare-toggle${isCompared ? ' is-active' : ''}`}
+          title={isCompared ? 'Remove from compare' : 'Add to compare'}
+          aria-label={isCompared ? 'Remove from compare' : 'Add to compare'}
+          onClick={() => onToggleCompare(product.id)}
+        >
+          <Scale size={18} strokeWidth={1.5} />
         </button>
 
         <button type="button" className="quick-view" onClick={() => onQuickView(product)}>

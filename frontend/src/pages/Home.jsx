@@ -71,6 +71,8 @@ function Home({
   wishlistIds,
   onAddToCart,
   onBuyNow,
+  compareIds,
+  onToggleCompare,
   onToggleWishlist,
   onQuickView,
   onProductsLoaded,
@@ -381,6 +383,8 @@ function Home({
                     onBuyNow={onBuyNow}
                     onToggleWishlist={onToggleWishlist}
                     isWishlisted={wishlistIds.includes(product.id)}
+                    onToggleCompare={onToggleCompare}
+                    isCompared={compareIds.includes(product.id)}
                     onQuickView={onQuickView}
                   />
                 ))}

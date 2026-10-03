@@ -26,12 +26,12 @@ export default function AdminPanel() {
   const [productSearch, setProductSearch] = useState('');
   const [orderSearch, setOrderSearch] = useState('');
 
-  // Sirf ADMIN role ko access
+
   useEffect(() => {
     if (!isAdmin) navigate('/');
   }, [isAdmin, navigate]);
 
-  // Alert 3.5s baad apne aap hat jaaye
+
   useEffect(() => {
     if (!notice) return undefined;
     const t = setTimeout(() => setNotice(null), 3500);

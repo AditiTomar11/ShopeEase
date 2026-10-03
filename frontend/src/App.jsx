@@ -11,6 +11,8 @@ import CartDrawer from './components/CartDrawer';
 import WishlistDrawer from './components/WishlistDrawer';
 import ProductModal from './components/ProductModal';
 import axiosInstance from './api/axiosInstance';
+import CompareBar from './components/CompareBar';
+import CompareModal from './components/CompareModal';
 
 // Start every new route at the top of the page (hash links keep their target).
 function ScrollToTop() {
@@ -39,6 +41,34 @@ function App() {
       return [];
     }
   });
+const [compareIds, setCompareIds] = useState(() => {
+  try {
+    const saved = localStorage.getItem('shopease_compare');
+    return saved ? JSON.parse(saved) : [];
+  } catch (e) {
+    return [];
+  }
+});
+const [isCompareOpen, setIsCompareOpen] = useState(false);
+
+useEffect(() => {
+  localStorage.setItem('shopease_compare', JSON.stringify(compareIds));
+}, [compareIds]);
+
+const handleToggleCompare = (productId) => {
+  setCompareIds((prev) => {
+    if (prev.includes(productId)) {
+      return prev.filter((id) => id !== productId);
+    }
+    if (prev.length >= 3) {
+      showToast('You can compare up to 3 products at a time');
+      return prev;
+    }
+    return [...prev, productId];
+  });
+};
+
+const compareProducts = allProducts.filter((p) => compareIds.includes(p.id));
 
   const [allProducts, setAllProducts] = useState([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
@@ -176,6 +206,8 @@ function App() {
                 <Home
                   cartItems={cartItems}
                   wishlistIds={wishlistIds}
+                  compareIds={compareIds}
+                  onToggleCompare={handleToggleCompare}
                   onAddToCart={handleAddToCart}
                   onBuyNow={handleBuyNow}
                   onToggleWishlist={handleToggleWishlist}
@@ -192,7 +224,22 @@ function App() {
         </main>
 
         <Footer />
+        <CompareBar
+          compareProducts={compareProducts}
+          onRemove={handleToggleCompare}
+          onClear={() => setCompareIds([])}
+          onOpenCompare={() => setIsCompareOpen(true)}
+        />
 
+        {isCompareOpen && (
+          <CompareModal
+            products={compareProducts}
+            onClose={() => setIsCompareOpen(false)}
+            onRemove={handleToggleCompare}
+            onAddToCart={handleAddToCart}
+            onBuyNow={handleBuyNow}
+          />
+        )}
         {/* Global Drawers & Modals */}
         <CartDrawer
           isOpen={isCartOpen}
